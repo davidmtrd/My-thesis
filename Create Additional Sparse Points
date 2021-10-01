@@ -1,0 +1,108 @@
+#Load packages
+import os
+import glob
+import pandas as pd
+import numpy as np
+from skimage import io
+from keras.models import Model
+from keras.applications.nasnet import NASNetMobile
+from keras.layers import Input, Dense, Activation, Dropout
+from imgaug import augmenters as iaa
+
+#Import images
+images = glob.glob("FILEPATH FOR IMAGES")
+images = pd.DataFrame(images)
+
+#%%
+#Label names
+labels = {'D_coral' : 0,
+          'LICO' : 1,
+          'Rubble_cor' : 2,
+          'Sed_dropst' : 3}
+
+#Create model background and load the weights
+main_input = Input(shape = (224, 224, 3))
+base = NASNetMobile(include_top = False, weights = 'imagenet', pooling = 'max')(main_input)
+x = Dropout(.75)(base)
+x = Dense(4)(x)
+main_output = Activation('softmax')(x)
+
+model = Model(inputs = [main_input], outputs = [main_output])
+
+model.load_weights("FILEPATH FOR MODEL")
+
+
+#Crop patch and checking dimensions
+def crop_patch(image, y, x):
+
+    size = 112
+    
+    patch = image[abs(size - y) : abs(size + y), abs(size - x) : abs(size + x), :]
+    
+    return patch
+
+
+def check_dimensions(image, y, x):
+    
+    size = 224
+    
+    height, width = image.shape[0:2]
+    if(x + (size//2) > width or x - (size//2) < 0 or y + (size//2) > height or y - (size//2) < 0):
+        return False
+    else:
+        return True
+
+#Sparse point function
+def get_sparse_points(image, percent, method):
+ 
+    num_points = int((image.shape[0] * image.shape[1]) * percent)
+    
+    offset = 200 # about 7.5%
+    
+    if(method == 'grid'):
+    
+        density = int(np.sqrt(num_points)) 
+
+        x_, y_ = np.meshgrid(np.linspace(offset, image.shape[1] - offset, density), 
+                             np.linspace(offset, image.shape[0] - offset, density))
+
+        xy = np.dstack([x_, y_]).reshape(-1, 2).astype(int)
+        x = [point[0] for point in xy]
+        y = [point[1] for point in xy]
+        
+    elif(method == 'random'):
+        
+        x = np.random.randint(offset, image.shape[1] - offset, num_points)
+        y = np.random.randint(offset, image.shape[0] - offset, num_points)
+    else:
+        print("Choose a method for sampling sparse points.")
+        return
+        
+    
+    patches = []
+    
+    for _ in range(len(x)):
+        
+        if(check_dimensions(image, y[_], x[_])):
+            patch = crop_patch(image, y[_], x[_])
+            patch = patch * (1.0/255.0)
+            patch = iaa.Resize(224).augment_image(patch)
+            patches.append(patch)
+            
+    sparse_predictions = model.predict(np.array(patches)).squeeze()
+
+    
+    labels_ = [list(labels)[np.argmax(s)] for s in sparse_predictions]
+    
+    confidence_ = [(sorted(s)[-1] - sorted(s)[-2]) for s in sparse_predictions]
+
+    df_sparse = pd.DataFrame(data = list(zip(y, x, labels_, confidence_)), columns = ['Y', 'X', 'Label', 'Confidence'])
+
+    df_sparse.to_csv(i.replace('IMAGE FOLDER NAME', 'FOLDER FOR ADDITIONAL LABELS NAME') + "_added_sparse" + ".csv")
+
+
+#Running the function
+for i in images[0]:
+    img = io.imread(i)
+    img = img[:,:,:-1]
+    get_sparse_points(img, 0.01, 'grid')
