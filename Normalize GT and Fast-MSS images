@@ -1,0 +1,34 @@
+#%%
+import cv2
+from skimage import io
+import glob
+
+#%%
+ground_truths = glob.glob('GROUND TRUTH FILEPATH')
+ground_truths.sort()
+predictions = glob.glob('FAST-MSS MASKS FILEPATH')
+predictions.sort()
+
+#%%
+for i, j in zip(ground_truths, predictions):
+    gt = cv2.imread(i)
+    pred = io.imread(j)
+    
+#The first value is the colour of the class in the original mask, second normalizes for comparison
+#First value can change so make sure it is correct by analyzing the mask beforehand
+    gt_gray = cv2.cvtColor(gt, cv2.COLOR_BGR2GRAY)
+    gt_gray[gt_gray == 131] = 0
+    gt_gray[gt_gray == 182] = 1
+    gt_gray[gt_gray == 175] = 2
+    gt_gray[gt_gray == 124] = 3
+
+    pred[pred == 0] = 0
+    pred[pred == 85 ] = 1
+    pred[pred == 127 ] = 1
+    pred[pred == 170] = 2
+    pred[pred == 255] = 3
+
+    io.imsave(arr = gt_gray, fname = i.replace('LabelBox', 'Ground_truths') + '_MC.png')
+    io.imsave(arr = pred, fname = j.replace('FastMSS_masks', 'FastMSS_predictions') + '_pred.png')
+
+
