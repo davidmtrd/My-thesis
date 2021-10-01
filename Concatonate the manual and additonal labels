@@ -1,0 +1,42 @@
+import gc
+import glob
+import numpy as np
+import pandas as pd
+from skimage import io
+
+added_labels =glob.glob('FILEPATH FOR ADDITIONAL LABELS')
+added_labels.sort()
+manual_labels =glob.glob('FILEPATH FOR MANUAL LABELS')
+manual_labels.sort()
+
+labels = {'Sed_dropst' : 0,
+          'Rubble_cor' : 1,
+          'D_coral' : 2,
+          'LICO' : 3}
+
+def all_sparse_points(label_file, added_sparse, labels, confidence = .9):
+
+     
+    original_sparse = pd.read_csv(label_file, sep = ",", 
+                                  engine = 'python').rename(columns={'Row' : 'Y', 'Col': 'X'})
+    
+    additional_sparse = pd.read_csv(added_sparse)
+    
+    additional_sparse.drop(['Unnamed: 0'], axis = 1, inplace = True) 
+
+    combined_sparse = pd.concat([original_sparse, additional_sparse])
+    combined_sparse = combined_sparse[combined_sparse['Confidence'] >= confidence]
+    
+    # Removes all of the other classes not apart of the study
+    temp_a = pd.DataFrame()
+    for class_label in labels:
+        temp_b = combined_sparse[combined_sparse['Label'] == class_label]
+        temp_a = pd.concat([temp_a, temp_b])
+    
+    temp_a.to_csv(label_file.replace('NAME OF ADD LABEL FILE', 'FILENAME OF ALL LABELS') + 'All_labels.csv')
+
+
+#all_sparse_points(label_file, added_sparse, labels, confidence= .9)
+
+for i,j in zip(manual_labels, added_labels):
+    all_sparse_points(i, j, labels, confidence = 0.9)
