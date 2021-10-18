@@ -1,0 +1,16 @@
+#%%
+#Changing csv files into txt files
+import pandas as pd
+
+df = pd.read_csv("C:/Users/David/Desktop/Masters/Thesis/Testing/Labels/L43_manual_labels.csv")
+
+#%%
+split_values = df["Name"].unique()
+
+#%% Removing 'Name' column
+for value in split_values:
+    df1 = df[df['Name'] == value]
+    df1.drop("Name", inplace  =True, axis = 1)
+    output_file_name = str(value) + "Annotation.txt"
+    df1.to_csv("C:/Users/David/Desktop/Masters/Thesis/Testing/Labels/" + output_file_name, index = False)
+
